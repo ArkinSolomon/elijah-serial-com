@@ -6,3 +6,4 @@ class PacketTypes:
     STRING = 0x05
     REQ_CALIBRATION_DATA = 0x06
     CALIBRATION_DATA = 0x07
+    HELLO = 0x08

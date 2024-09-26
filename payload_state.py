@@ -11,7 +11,7 @@ pressure: int = -1
 temperature: float = -1
 altitude: float = -1
 
-calibration_data: CalibrationData | None
+calibration_data: CalibrationData | None = None
 
 time_set_ack_status = AckStatus.NOT_WAITING
 clear_time_set_ack_status_at: datetime | None = None
@@ -20,9 +20,12 @@ calibration_data_ack_status = AckStatus.NOT_WAITING
 clear_calibration_data_ack_status_at: datetime | None = None
 
 log_messages = LogBuffer()
+
+
 def clear_messages():
     global log_messages
     log_messages = LogBuffer()
+
 
 def reset_state() -> None:
     global time, day_of_week, pressure, temperature, altitude, time_set_ack_status, calibration_data, clear_time_set_ack_status_at, calibration_data_ack_status, clear_calibration_data_ack_status_at
@@ -37,6 +40,7 @@ def reset_state() -> None:
     calibration_data_ack_status = AckStatus.NOT_WAITING
     clear_calibration_data_ack_status_at = None
     clear_messages()
+
 
 def sys_day_of_week_str() -> str:
     match day_of_week:

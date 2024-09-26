@@ -1,12 +1,12 @@
 from datetime import datetime, timedelta
 from math import floor
-from pyexpat.errors import messages
 
 import serial
 from asciimatics.screen import Screen
 
 import payload_state
 from ack_status import AckStatus
+from display_pages import update_calibration_display_pages, update_data_display_pages
 from log_message import LogMessage
 from packets.calibration_data_packet import CalibrationDataPacket
 from packets.collection_data_packet import CollectionDataPacket
@@ -27,9 +27,19 @@ packet_lens = {
 tty: serial.Serial | None = None
 
 right_headers = ['Project Elijah Payload Serial Communication', 'NASA Student Launch 2024', 'Cedarville University']
+selected_opt = 0
+
+data_display_pages = update_data_display_pages()
+calibration_display_pages = update_calibration_display_pages()
+current_display_pages = data_display_pages
+alt_page_selected = 0
+selected_display_page = 0
+is_calibration_page_selected = False
+
 
 def print_sys_log(message: str):
     payload_state.log_messages.add_message(LogMessage(message, is_system=True))
+
 
 def try_connect():
     global tty
@@ -37,7 +47,7 @@ def try_connect():
         tty = serial.Serial('/dev/tty.usbmodem1301')
         tty.open()
         payload_state.reset_state()
-    except serial.SerialException as e:
+    except serial.SerialException:
         return
 
 
@@ -46,6 +56,17 @@ def update_payload_clock():
         return
     tty.write(SetTimePacket().serialize())
     payload_state.time_set_ack_status = AckStatus.WAITING
+
+
+def say_hello():
+    if tty is None:
+        return
+
+    packet = bytearray()
+    packet.append(PacketTypes.HELLO.to_bytes(byteorder='little')[0])
+    print_sys_log("Hello, payload \u263a")
+    tty.write(packet)
+
 
 def request_calibration_data():
     if tty is None:
@@ -56,11 +77,11 @@ def request_calibration_data():
 
 
 def handle_serial_input():
-    global tty
+    global tty, data_display_pages, calibration_display_pages
     try:
         packet_type = bytes(tty.read(1))[0]
         if packet_type not in packet_lens:
-            # print(f'Unknown packet_type {packet_type.to_bytes()}')
+            print_sys_log(f'Unknown packet_type {packet_type.to_bytes()}')
             return
 
         packet_len = packet_lens[packet_type]
@@ -82,6 +103,7 @@ def handle_serial_input():
             case PacketTypes.COLLECTION_DATA:
                 collection_data_packet = CollectionDataPacket(data)
                 collection_data_packet.update_payload_state()
+                data_display_pages = update_data_display_pages()
             case PacketTypes.STRING:
                 payload_state.log_messages.add_message(str(StringPacket(data)))
             case PacketTypes.CALIBRATION_DATA:
@@ -89,7 +111,7 @@ def handle_serial_input():
                 calib_packet.update_payload_state()
                 payload_state.calibration_data_ack_status = AckStatus.SUCCESS
                 payload_state.clear_calibration_data_ack_status_at = datetime.now() + timedelta(seconds=5)
-                print_sys_log(f'Calibration Data: {calib_packet.calibration_data}')
+                calibration_display_pages = update_calibration_display_pages()
             case _:
                 print_sys_log(f'Data for unimplemented {packet_type}: 0x{data.hex()}')
     except serial.SerialException:
@@ -120,34 +142,42 @@ def print_bar(screen: Screen, y: int) -> None:
 
 
 def print_data(screen: Screen) -> None:
-    data: (str, any, str) = [
-        ('Pressure', payload_state.pressure, 'Pa'),
-        ('Temperature', payload_state.temperature, '°C'),
-        ('Altitude', payload_state.altitude, 'm'),
-    ]
-
     output_len = 0
-    for i in range(len(data)):
-        label, value, unit = data[i]
+    data_page = current_display_pages[selected_display_page]
+    for i in range(len(data_page)):
+        label, value, unit = data_page[i]
         value_str = str(value)
         if type(value) is float:
             value_str = f'{value:.2f}'
 
         output_label = f'{label}: '
-        screen.print_at(output_label, output_len, 4, colour=Screen.COLOUR_WHITE, bg=Screen.COLOUR_BLACK, attr=screen.A_NORMAL)
+        screen.print_at(output_label, output_len, 4, colour=Screen.COLOUR_WHITE, bg=Screen.COLOUR_BLACK,
+                        attr=screen.A_NORMAL)
         output_len += len(output_label)
 
-        output_value = f'{value_str} {unit}'
-        screen.print_at(output_value, output_len, 4, colour=Screen.COLOUR_CYAN, bg=Screen.COLOUR_BLACK, attr=screen.A_BOLD)
+        output_value = f'{value_str} {unit}' if unit != '' else value_str
+        screen.print_at(output_value, output_len, 4, colour=45, bg=Screen.COLOUR_BLACK,
+                        attr=screen.A_BOLD)
         output_len += len(output_value)
 
-        if i == len(data) - 1:
+        if i == len(data_page) - 1:
             break
 
         output_sep = ' | '
         screen.print_at(output_sep, output_len, 4, colour=Screen.COLOUR_WHITE, bg=Screen.COLOUR_BLACK,
                         attr=screen.A_NORMAL)
         output_len += len(output_sep)
+
+    calibration_data_message: str
+    if is_calibration_page_selected:
+        calibration_data_message = 'Press C to see payload data'
+    else:
+        calibration_data_message = 'Press C to see calibration data'
+    calibration_data_message += '.' if len(current_display_pages) == 1 else ', or \u2190/\u2192 to switch pages.'
+
+    if tty is not None:
+        screen.print_at(calibration_data_message, screen.width - len(calibration_data_message), 4,
+                        colour=243)
     print_bar(screen, 5)
 
 
@@ -156,10 +186,11 @@ user_has_quit = False
 
 
 def main(screen: Screen):
-    global user_has_quit, tty
+    global user_has_quit, tty, selected_opt, alt_page_selected, selected_display_page
+    global current_display_pages, is_calibration_page_selected
 
-    selected_opt = 0
     options = [
+        ('Say hello', say_hello),
         ('Update payload clock', update_payload_clock),
         ('Request calibration data', request_calibration_data),
         ('Clear message history', payload_state.clear_messages),
@@ -175,6 +206,10 @@ def main(screen: Screen):
         check_ack_flag_clears()
         screen.clear_buffer(Screen.COLOUR_WHITE, Screen.A_NORMAL, Screen.COLOUR_BLACK)
 
+        if is_calibration_page_selected:
+            current_display_pages = calibration_display_pages
+        else:
+            current_display_pages = data_display_pages
         print_bar(screen, 3)
         print_data(screen)
 
@@ -185,7 +220,8 @@ def main(screen: Screen):
             print_messages = print_messages[-avail_space:]
 
         for i in range(len(print_messages)):
-            screen.print_at(print_messages[i], 0, 6 + i, bg=Screen.COLOUR_MAGENTA if print_messages[i].is_system else Screen.COLOUR_BLACK)
+            screen.print_at(print_messages[i], 0, 6 + i,
+                            colour=Screen.COLOUR_CYAN if print_messages[i].is_system else Screen.COLOUR_WHITE)
 
         screen.print_at('System time: ', 0, 0)
         screen.print_at(datetime.now().strftime(
@@ -235,7 +271,15 @@ def main(screen: Screen):
             screen.print_at(options[selected_opt][0], 0,
                             screen.height - 1, colour=Screen.COLOUR_MAGENTA)
 
-            if ev == -204:
+            if ev == -203:
+                selected_display_page -= 1
+                if selected_display_page < 0:
+                    selected_display_page = len(current_display_pages) - 1
+            elif ev == -205:
+                selected_display_page += 1
+                if selected_display_page == len(current_display_pages):
+                    selected_display_page = 0
+            elif ev == -204:
                 selected_opt -= 1
                 if selected_opt == -1:
                     selected_opt = len(options) - 1
@@ -245,6 +289,11 @@ def main(screen: Screen):
                     selected_opt = 0
             elif ev == 10:
                 options[selected_opt][1]()
+            elif ev in (ord('C'), ord('c')):
+                current_page = selected_display_page
+                selected_display_page = alt_page_selected
+                alt_page_selected = current_page
+                is_calibration_page_selected = not is_calibration_page_selected
 
         screen.print_at(help_text, 0,
                         screen.height - 2, colour=Screen.COLOUR_GREEN)
