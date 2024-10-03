@@ -1,11 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from packets.packet_types import PacketTypes
 
 
 class SetTimePacket:
     def __init__(self):
-       self.now = datetime.now(tz=None)
+       self.now = datetime.now(tz=None) + timedelta(milliseconds=200)
 
     def serialize(self) -> bytearray:
         packet = bytearray()

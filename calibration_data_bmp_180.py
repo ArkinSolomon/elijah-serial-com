@@ -1,4 +1,4 @@
-class CalibrationData:
+class CalibrationDataBMP180:
     AC1: int
     AC2: int
     AC3: int

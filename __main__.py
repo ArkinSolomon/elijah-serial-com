@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 from math import floor
 
@@ -8,7 +9,8 @@ import payload_state
 from ack_status import AckStatus
 from display_pages import update_calibration_display_pages, update_data_display_pages
 from log_message import LogMessage
-from packets.calibration_data_packet import CalibrationDataPacket
+from packets.calibration_data_bmp_180_packet import CalibrationDataBMP180Packet
+from packets.calibration_data_bmp_280_packet import CalibrationDataBMP280Packet
 from packets.collection_data_packet import CollectionDataPacket
 from packets.packet_types import PacketTypes
 from packets.set_time_packet import SetTimePacket
@@ -21,12 +23,13 @@ packet_lens = {
     PacketTypes.COLLECTION_DATA: 28,
     PacketTypes.STRING: -1,
     PacketTypes.REQ_CALIBRATION_DATA: 0,
-    PacketTypes.CALIBRATION_DATA: 23
+    PacketTypes.CALIBRATION_DATA_BMP_180: 23,
+    PacketTypes.CALIBRATION_DATA_BMP_280: 26
 }
 
 tty: serial.Serial | None = None
 
-right_headers = ['Project Elijah Payload Serial Communication', 'NASA Student Launch 2024', 'Cedarville University']
+right_headers = ['Project Elijah: Payload Serial Communication', 'NASA Student Launch 2024-2025', 'Cedarville University']
 selected_opt = 0
 
 data_display_pages = update_data_display_pages()
@@ -40,13 +43,23 @@ is_calibration_page_selected = False
 def print_sys_log(message: str):
     payload_state.log_messages.add_message(LogMessage(message, is_system=True))
 
+full_device_path: str
 
 def try_connect():
-    global tty
+    global tty, full_device_path, data_display_pages, calibration_display_pages
     try:
-        tty = serial.Serial('/dev/tty.usbmodem1301')
+        devices = [device for device in os.listdir('/dev') if 'tty.usbmodem' in device]
+
+        if len(devices) == 0:
+            return
+
+        full_device_path = f'/dev/{devices[0]}'
+
+        tty = serial.Serial(full_device_path)
         tty.open()
         payload_state.reset_state()
+        data_display_pages = update_data_display_pages()
+        calibration_display_pages = update_calibration_display_pages()
     except serial.SerialException:
         return
 
@@ -81,7 +94,7 @@ def handle_serial_input():
     try:
         packet_type = bytes(tty.read(1))[0]
         if packet_type not in packet_lens:
-            print_sys_log(f'Unknown packet_type {packet_type.to_bytes()}')
+            print_sys_log(f'Unknown packet_type 0x{packet_type.to_bytes().hex()}')
             return
 
         packet_len = packet_lens[packet_type]
@@ -106,8 +119,14 @@ def handle_serial_input():
                 data_display_pages = update_data_display_pages()
             case PacketTypes.STRING:
                 payload_state.log_messages.add_message(str(StringPacket(data)))
-            case PacketTypes.CALIBRATION_DATA:
-                calib_packet = CalibrationDataPacket(data)
+            case PacketTypes.CALIBRATION_DATA_BMP_180:
+                calib_packet = CalibrationDataBMP180Packet(data)
+                calib_packet.update_payload_state()
+                payload_state.calibration_data_ack_status = AckStatus.SUCCESS
+                payload_state.clear_calibration_data_ack_status_at = datetime.now() + timedelta(seconds=5)
+                calibration_display_pages = update_calibration_display_pages()
+            case PacketTypes.CALIBRATION_DATA_BMP_280:
+                calib_packet = CalibrationDataBMP280Packet(data)
                 calib_packet.update_payload_state()
                 payload_state.calibration_data_ack_status = AckStatus.SUCCESS
                 payload_state.clear_calibration_data_ack_status_at = datetime.now() + timedelta(seconds=5)
@@ -181,7 +200,6 @@ def print_data(screen: Screen) -> None:
     print_bar(screen, 5)
 
 
-request_calibration_data()
 user_has_quit = False
 
 
@@ -294,6 +312,9 @@ def main(screen: Screen):
                 selected_display_page = alt_page_selected
                 alt_page_selected = current_page
                 is_calibration_page_selected = not is_calibration_page_selected
+
+            additional_info_text = f'Device: {full_device_path}'
+            screen.print_at(additional_info_text, screen.width - len(additional_info_text), screen.height - 1, colour=243)
 
         screen.print_at(help_text, 0,
                         screen.height - 2, colour=Screen.COLOUR_GREEN)
