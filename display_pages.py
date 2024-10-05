@@ -68,6 +68,9 @@ def update_calibration_display_pages():
              ''),
             ('P9',
              payload_state.calibration_data_bmp_280.dig_P9 if payload_state.calibration_data_bmp_280 is not None else -1,
-             '')
+             ''),
+            ('Sea Level Pressure',
+             payload_state.calibration_data_bmp_280.sea_level_pressure if payload_state.calibration_data_bmp_280 is not None else -1,
+             'Pa'),
         ]
     ]

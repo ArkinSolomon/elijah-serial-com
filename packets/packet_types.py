@@ -8,3 +8,25 @@ class PacketTypes:
     CALIBRATION_DATA_BMP_180 = 0x07
     HELLO = 0x08
     CALIBRATION_DATA_BMP_280 = 0x09
+    LOOP_TIME = 0x0A
+    I2C_SCAN_0 = 0x0B
+    I2C_SCAN_1 = 0x0C
+    SET_SEA_LEVEL_PRESS = 0x0D
+    DS_1307_REG_DUMP = 0x0E
+    DS_1307_ERASE = 0x0F
+    SEA_LEVEL_PRESS_ACK_SUCCESS = 0x10
+    SEA_LEVEL_PRESS_ACK_FAIL = 0x11
+
+packet_lens = {
+    PacketTypes.TIME_SET: 8,
+    PacketTypes.TIME_SET_SUCCESS: 0,
+    PacketTypes.TIME_SET_FAIL: 0,
+    PacketTypes.COLLECTION_DATA: 28,
+    PacketTypes.STRING: -1,
+    PacketTypes.REQ_CALIBRATION_DATA: 0,
+    PacketTypes.CALIBRATION_DATA_BMP_180: 23,
+    PacketTypes.CALIBRATION_DATA_BMP_280: 34,
+    PacketTypes.LOOP_TIME: 4,
+    PacketTypes.SEA_LEVEL_PRESS_ACK_SUCCESS: 0,
+    PacketTypes.SEA_LEVEL_PRESS_ACK_FAIL: 0,
+}

@@ -1,6 +1,8 @@
 import os
+import sys
 from datetime import datetime, timedelta
 from math import floor
+from symtable import Function
 
 import serial
 from asciimatics.screen import Screen
@@ -12,24 +14,16 @@ from log_message import LogMessage
 from packets.calibration_data_bmp_180_packet import CalibrationDataBMP180Packet
 from packets.calibration_data_bmp_280_packet import CalibrationDataBMP280Packet
 from packets.collection_data_packet import CollectionDataPacket
-from packets.packet_types import PacketTypes
+from packets.loop_time_packet import LoopTimePacket
+from packets.packet_types import PacketTypes, packet_lens
+from packets.set_sea_level_press_packet import SetSeaLevelPressPacket
 from packets.set_time_packet import SetTimePacket
 from packets.string_packet import StringPacket
 
-packet_lens = {
-    PacketTypes.TIME_SET: 8,
-    PacketTypes.TIME_SET_SUCCESS: 0,
-    PacketTypes.TIME_SET_FAIL: 0,
-    PacketTypes.COLLECTION_DATA: 28,
-    PacketTypes.STRING: -1,
-    PacketTypes.REQ_CALIBRATION_DATA: 0,
-    PacketTypes.CALIBRATION_DATA_BMP_180: 23,
-    PacketTypes.CALIBRATION_DATA_BMP_280: 26
-}
-
 tty: serial.Serial | None = None
 
-right_headers = ['Project Elijah: Payload Serial Communication', 'NASA Student Launch 2024-2025', 'Cedarville University']
+right_headers = ['Project Elijah: Payload Serial Communication', 'NASA Student Launch 2024-2025',
+                 'Cedarville University']
 selected_opt = 0
 
 data_display_pages = update_data_display_pages()
@@ -38,6 +32,11 @@ current_display_pages = data_display_pages
 alt_page_selected = 0
 selected_display_page = 0
 is_calibration_page_selected = False
+
+current_prompt = ''
+current_input = ''
+is_input_mode = False
+post_enter: Function | None = None
 
 
 def print_sys_log(message: str):
@@ -76,14 +75,39 @@ def update_payload_clock():
     payload_state.time_set_ack_status = AckStatus.WAITING
 
 
-def say_hello():
+def send_signal_packet(packet_type: int):
     if tty is None:
         return
 
     packet = bytearray()
-    packet.append(PacketTypes.HELLO.to_bytes(byteorder='little')[0])
-    print_sys_log("Hello, payload \u263a")
+    packet.append(packet_type.to_bytes(byteorder='little')[0])
     tty.write(packet)
+
+
+def say_hello():
+    if tty is None:
+        return
+    print_sys_log('Hello, payload \u263a')
+    send_signal_packet(PacketTypes.HELLO)
+
+
+def scan_bus(bus: int):
+    packet_type = PacketTypes.I2C_SCAN_0 if bus == 0 else PacketTypes.I2C_SCAN_1
+    send_signal_packet(packet_type)
+
+def scan_bus_0():
+    scan_bus(0)
+
+
+def scan_bus_1():
+    scan_bus(1)
+
+
+def ds_1307_reg_dump():
+    send_signal_packet(PacketTypes.DS_1307_REG_DUMP)
+
+def ds_1307_erase():
+    send_signal_packet(PacketTypes.DS_1307_ERASE)
 
 
 def request_calibration_data():
@@ -94,8 +118,33 @@ def request_calibration_data():
     tty.write(packet)
 
 
+def send_sea_level_press():
+    if tty is None:
+        return
+
+    global is_input_mode, post_enter
+    is_input_mode = False
+    post_enter = None
+    try:
+        send_value = float(current_input)
+    except ValueError:
+        print_sys_log(f"Invalid value for pressure: {current_input}")
+        return
+
+    payload_state.update_sea_level_press_ack_status = AckStatus.WAITING
+    tty.write(SetSeaLevelPressPacket(send_value).serialize())
+
+
+def update_sea_level_press():
+    global is_input_mode, current_input, post_enter, current_prompt
+    is_input_mode = True
+    current_input = ""
+    post_enter = send_sea_level_press
+    current_prompt = "Sea level pressure (Pa):"
+
+
 def handle_serial_input():
-    global tty, data_display_pages, calibration_display_pages
+    global tty, data_display_pages, calibration_display_pages, is_input_mode
     try:
         packet_type = bytes(tty.read(1))[0]
         if packet_type not in packet_lens:
@@ -136,9 +185,22 @@ def handle_serial_input():
                 payload_state.calibration_data_ack_status = AckStatus.SUCCESS
                 payload_state.clear_calibration_data_ack_status_at = datetime.now() + timedelta(seconds=5)
                 calibration_display_pages = update_calibration_display_pages()
+            case PacketTypes.LOOP_TIME:
+                loop_packet = LoopTimePacket(data)
+                loop_packet.update_payload_state()
+            case PacketTypes.SEA_LEVEL_PRESS_ACK_SUCCESS:
+                payload_state.update_sea_level_press_ack_status = AckStatus.SUCCESS
+                payload_state.clear_update_sea_level_press_ack_status_at = datetime.now() + timedelta(seconds=5)
+            case PacketTypes.SEA_LEVEL_PRESS_ACK_FAIL:
+                payload_state.update_sea_level_press_ack_status = AckStatus.FAILED
+                payload_state.clear_update_sea_level_press_ack_status_at = datetime.now() + timedelta(seconds=5)
             case _:
-                print_sys_log(f'Data for unimplemented {packet_type}: 0x{data.hex()}')
+                if packet_len == 0:
+                    print_sys_log(f'Received unimplemented signal packet 0x{packet_type.to_bytes(1, byteorder='little').hex()}')
+                else:
+                    print_sys_log(f'Data for unimplemented packet 0x{packet_type.to_bytes(1, byteorder='little').hex()}: 0x{data.hex()}')
     except serial.SerialException:
+        is_input_mode = False
         tty = None
 
 
@@ -149,6 +211,9 @@ def check_ack_flag_clears():
     if payload_state.clear_time_set_ack_status_at is not None and datetime.now() > payload_state.clear_time_set_ack_status_at:
         payload_state.clear_time_set_ack_status_at = None
         payload_state.time_set_ack_status = AckStatus.NOT_WAITING
+    if payload_state.clear_update_sea_level_press_ack_status_at is not None and datetime.now() > payload_state.clear_update_sea_level_press_ack_status_at:
+        payload_state.clear_update_sea_level_press_ack_status_at = None
+        payload_state.update_sea_level_press_ack_status = AckStatus.NOT_WAITING
 
 
 def print_right_header(screen: Screen) -> None:
@@ -207,17 +272,24 @@ def print_data(screen: Screen) -> None:
 
 user_has_quit = False
 
+menu_options = [
+    ('Say hello', say_hello),
+    ('Update payload clock', update_payload_clock),
+    ('Request calibration data', request_calibration_data),
+    ('Scan I2C bus 0', scan_bus_0),
+    ('Scan I2C bus 1', scan_bus_1),
+    ('Update sea level pressure', update_sea_level_press),
+    ('DS 1307 register dump', ds_1307_reg_dump),
+    ('DS 1307 erase', ds_1307_erase),
+    ('Clear message history', payload_state.clear_messages),
+]
+menu_options.sort(key=lambda opt: opt[0])
+
 
 def main(screen: Screen):
     global user_has_quit, tty, selected_opt, alt_page_selected, selected_display_page
     global current_display_pages, is_calibration_page_selected
-
-    options = [
-        ('Say hello', say_hello),
-        ('Update payload clock', update_payload_clock),
-        ('Request calibration data', request_calibration_data),
-        ('Clear message history', payload_state.clear_messages),
-    ]
+    global is_input_mode, current_input
 
     while True:
         if tty is None:
@@ -238,22 +310,23 @@ def main(screen: Screen):
 
         avail_space = screen.height - 8
 
-        print_messages = payload_state.log_messages.messages
+        print_messages = payload_state.log_messages.generate_screen_text(screen.width, avail_space)
         if len(payload_state.log_messages.messages) > avail_space:
             print_messages = print_messages[-avail_space:]
 
         for i in range(len(print_messages)):
-            screen.print_at(print_messages[i], 0, 6 + i,
-                            colour=Screen.COLOUR_CYAN if print_messages[i].is_system else Screen.COLOUR_WHITE)
+            message, color = print_messages[i]
+            screen.print_at(message, 0, 6 + i,
+                            colour=color)
 
         screen.print_at('System time: ', 0, 0)
         screen.print_at(datetime.now().strftime(
-            "%A, %B %d, %Y %I:%M:%S %p"),
+            '%A, %B %d, %Y %I:%M:%S %p'),
             14, 0, colour=Screen.COLOUR_WHITE)
 
         screen.print_at('Payload time: ', 0, 1)
         payload_time_str = payload_state.time.strftime(
-            f"{payload_state.sys_day_of_week_str()}, %B %d, %Y %I:%M:%S %p") if payload_state.time is not None else '[Not Set]'
+            f'{payload_state.sys_day_of_week_str()}, %B %d, %Y %I:%M:%S %p') if payload_state.time is not None else '[Not Set]'
 
         payload_time_is_valid = payload_state.time is not None and abs(
             (datetime.now() - payload_state.time).total_seconds()) < 3
@@ -274,6 +347,26 @@ def main(screen: Screen):
                 print_color = Screen.COLOUR_RED
             screen.print_at(print_text, print_pos, 1, colour=print_color)
 
+        loop_time_label = 'Loop time: '
+        screen.print_at(loop_time_label, 0, 2)
+
+        loop_time_str = '{:.3} ms'.format(payload_state.last_loop_time / 100)
+        screen.print_at(loop_time_str, len(loop_time_label), 2, colour=45)
+
+        misc_ack_status_x = len(loop_time_str) + len(loop_time_label) + 1
+        if payload_state.update_sea_level_press_ack_status != AckStatus.NOT_WAITING:
+            print_color = Screen.COLOUR_YELLOW
+            status_text = 'Waiting for sea level pressure change acknowledgment...'
+            if payload_state.update_sea_level_press_ack_status == AckStatus.SUCCESS:
+                status_text = 'Sea level pressure changed!'
+                print_color = Screen.COLOUR_GREEN
+            elif payload_state.update_sea_level_press_ack_status == AckStatus.FAILED:
+                status_text = 'Unable to set sea level pressure :('
+                print_color = Screen.COLOUR_RED
+            screen.print_at(status_text, misc_ack_status_x, 2, colour=print_color)
+            misc_ack_status_x += len(status_text) + 1
+
+
         help_text = 'Use \u2191/\u2193 to switch options and \u21B5 to select. Press Q to quit.'
         ev = screen.get_key()
         if ev in (ord('Q'), ord('q')):
@@ -281,7 +374,7 @@ def main(screen: Screen):
             return
 
         if tty is None:
-            disconnected_text = 'PAYLOAD DISCONNECTED'
+            disconnected_text = f'PAYLOAD DISCONNECTED (device: {full_device_path if full_device_path is not None else "unknown"})'
             padding_len = floor((screen.width - len(disconnected_text)) / 2)
             disconnected_text = ' ' * padding_len + disconnected_text
             disconnected_text += ' ' * (screen.width - len(disconnected_text))
@@ -290,10 +383,9 @@ def main(screen: Screen):
             screen.print_at(disconnected_text, 0, screen.height - 1, colour=Screen.COLOUR_WHITE, bg=Screen.COLOUR_RED,
                             attr=Screen.A_BOLD)
             help_text = 'Payload disconnected, please reconnect to continue, or press Q to quit.'
-        else:
-            screen.print_at(options[selected_opt][0], 0,
+        elif not is_input_mode:
+            screen.print_at(menu_options[selected_opt][0], 0,
                             screen.height - 1, colour=Screen.COLOUR_MAGENTA)
-
             if ev == -203:
                 selected_display_page -= 1
                 if selected_display_page < 0:
@@ -305,21 +397,40 @@ def main(screen: Screen):
             elif ev == -204:
                 selected_opt -= 1
                 if selected_opt == -1:
-                    selected_opt = len(options) - 1
+                    selected_opt = len(menu_options) - 1
             elif ev == -206:
                 selected_opt += 1
-                if selected_opt == len(options):
+                if selected_opt == len(menu_options):
                     selected_opt = 0
             elif ev == 10:
-                options[selected_opt][1]()
+                menu_options[selected_opt][1]()
             elif ev in (ord('C'), ord('c')):
                 current_page = selected_display_page
                 selected_display_page = alt_page_selected
                 alt_page_selected = current_page
                 is_calibration_page_selected = not is_calibration_page_selected
+        else:
+            help_text = "Press ESC to cancel."
+            if ev == -1:
+                is_input_mode = False
+            elif ev == 10:
+                is_input_mode = False
+                if post_enter is not None:
+                    post_enter()
+            elif ev == -300:
+                if len(current_input) > 0:
+                    current_input = current_input[:-1]
+            elif ev is not None:
+                current_input += chr(ev)
 
+            screen.print_at(current_prompt, 0,
+                            screen.height - 1, colour=Screen.COLOUR_MAGENTA)
+            screen.print_at(current_input, len(current_prompt) + 1, screen.height - 1, colour=45)
+
+        if tty is not None:
             additional_info_text = f'Device: {full_device_path}'
-            screen.print_at(additional_info_text, screen.width - len(additional_info_text), screen.height - 1, colour=243)
+            screen.print_at(additional_info_text, screen.width - len(additional_info_text), screen.height - 1,
+                            colour=243)
 
         screen.print_at(help_text, 0,
                         screen.height - 2, colour=Screen.COLOUR_GREEN)
@@ -332,6 +443,7 @@ def main(screen: Screen):
             if (tty is not None) and tty.in_waiting:
                 handle_serial_input()
         except OSError:
+            is_input_mode = False
             tty = None
 
 

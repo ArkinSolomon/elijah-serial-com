@@ -1,3 +1,5 @@
+import struct
+
 import payload_state as payload_state
 from calibration_data_bmp_280 import CalibrationDataBMP280
 
@@ -34,6 +36,8 @@ class CalibrationDataBMP280Packet:
         self.calibration_data.dig_P7 = (data[20] << 8 | data[21]) * (-1 if is_P7_negative else 1)
         self.calibration_data.dig_P8 = (data[22] << 8 | data[23]) * (-1 if is_P8_negative else 1)
         self.calibration_data.dig_P9 = (data[24] << 8 | data[25]) * (-1 if is_P9_negative else 1)
+
+        self.calibration_data.sea_level_pressure = struct.unpack("d", data[26:])[0]
 
     def update_payload_state(self):
         payload_state.calibration_data_bmp_280 = self.calibration_data

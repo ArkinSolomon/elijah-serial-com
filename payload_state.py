@@ -21,6 +21,11 @@ clear_time_set_ack_status_at: datetime | None = None
 calibration_data_ack_status = AckStatus.NOT_WAITING
 clear_calibration_data_ack_status_at: datetime | None = None
 
+update_sea_level_press_ack_status = AckStatus.NOT_WAITING
+clear_update_sea_level_press_ack_status_at: datetime | None = None
+
+last_loop_time: int = -100
+
 log_messages = LogBuffer()
 
 
@@ -30,7 +35,8 @@ def clear_messages():
 
 
 def reset_state() -> None:
-    global time, day_of_week, pressure, temperature, altitude, time_set_ack_status, calibration_data_bmp_180, calibration_data_bmp_280, clear_time_set_ack_status_at, calibration_data_ack_status, clear_calibration_data_ack_status_at
+    global time, day_of_week, pressure, temperature, altitude, calibration_data_bmp_180, calibration_data_bmp_280, last_loop_time
+    global time_set_ack_status, clear_time_set_ack_status_at, calibration_data_ack_status, clear_calibration_data_ack_status_at, update_sea_level_press_ack_status, clear_update_sea_level_press_ack_status_at
     time = None
     day_of_week = 0
     pressure = -1
@@ -38,10 +44,17 @@ def reset_state() -> None:
     altitude = -1
     calibration_data_bmp_180 = None
     calibration_data_bmp_280 = None
+
     time_set_ack_status = AckStatus.NOT_WAITING
     clear_time_set_ack_status_at = None
+
     calibration_data_ack_status = AckStatus.NOT_WAITING
     clear_calibration_data_ack_status_at = None
+
+    update_sea_level_press_ack_status = AckStatus.NOT_WAITING
+    clear_update_sea_level_press_ack_status_at = None
+
+    last_loop_time = -100
     clear_messages()
 
 

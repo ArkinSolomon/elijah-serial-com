@@ -14,4 +14,7 @@ class LogMessage:
         self.is_system = is_system
 
     def __str__(self):
-        return f'[{self.timestamp.strftime(r'%I:%M:%S')}]{'[SYSTEM]' if self.is_system else ''} {self.message}'
+        return f'[{self.get_formatted_timestamp()}]{'[SYSTEM]' if self.is_system else ''} {self.message}'
+
+    def get_formatted_timestamp(self):
+        return self.timestamp.strftime(r'%I:%M:%S')

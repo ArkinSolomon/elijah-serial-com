@@ -5,7 +5,7 @@ from packets.packet_types import PacketTypes
 
 class SetTimePacket:
     def __init__(self):
-       self.now = datetime.now(tz=None) + timedelta(milliseconds=200)
+        self.now = datetime.now(tz=None) + timedelta(milliseconds=200)
 
     def serialize(self) -> bytearray:
         packet = bytearray()
@@ -13,7 +13,7 @@ class SetTimePacket:
         packet.append(self.now.second.to_bytes(1)[0])
         packet.append(self.now.minute.to_bytes(1)[0])
         packet.append(self.now.hour.to_bytes(1)[0])
-        packet.append(((self.now.weekday() + 2) % 7).to_bytes(1)[0])
+        packet.append((7 if self.now.weekday() == 5 else ((self.now.weekday() + 2) % 7)).to_bytes(1)[0])
         packet.append(self.now.day.to_bytes(1)[0])
         packet.append(self.now.month.to_bytes(1)[0])
 
