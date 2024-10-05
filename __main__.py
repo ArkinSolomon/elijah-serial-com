@@ -43,19 +43,24 @@ is_calibration_page_selected = False
 def print_sys_log(message: str):
     payload_state.log_messages.add_message(LogMessage(message, is_system=True))
 
-full_device_path: str
+
+full_device_path: str | None = None
+
 
 def try_connect():
     global tty, full_device_path, data_display_pages, calibration_display_pages
     try:
-        devices = [device for device in os.listdir('/dev') if 'tty.usbmodem' in device]
+        if sys.platform == 'win32':
+            tty = serial.Serial(port="COM4", baudrate=9600)
+        else:
+            devices = [device for device in os.listdir('/dev') if 'tty.usbmodem' in device]
 
-        if len(devices) == 0:
-            return
+            if len(devices) == 0:
+                return
 
-        full_device_path = f'/dev/{devices[0]}'
+            full_device_path = f'/dev/{devices[0]}'
 
-        tty = serial.Serial(full_device_path)
+            tty = serial.Serial(full_device_path)
         tty.open()
         payload_state.reset_state()
         data_display_pages = update_data_display_pages()
