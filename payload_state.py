@@ -4,6 +4,7 @@ from ack_status import AckStatus
 from calibration_data_bmp_180 import CalibrationDataBMP180
 from calibration_data_bmp_280 import CalibrationDataBMP280
 from log_buffer import LogBuffer
+from packets.fault_data_packet import FaultDataPacket
 
 time: datetime | None = None
 day_of_week: int = 0
@@ -24,18 +25,22 @@ clear_calibration_data_ack_status_at: datetime | None = None
 update_sea_level_press_ack_status = AckStatus.NOT_WAITING
 clear_update_sea_level_press_ack_status_at: datetime | None = None
 
-last_loop_time: int = -100
+last_main_loop_time: int = -100
+last_core_1_loop_time: int = -100
+last_usb_loop_time: int = -100
 
 log_messages = LogBuffer()
 
+last_fault_data: FaultDataPacket | None = None
 
 def clear_messages():
     global log_messages
+    log_messages.unfreeze()
     log_messages = LogBuffer()
 
 
 def reset_state() -> None:
-    global time, day_of_week, pressure, temperature, altitude, calibration_data_bmp_180, calibration_data_bmp_280, last_loop_time
+    global time, day_of_week, pressure, temperature, altitude, calibration_data_bmp_180, calibration_data_bmp_280, last_main_loop_time
     global time_set_ack_status, clear_time_set_ack_status_at, calibration_data_ack_status, clear_calibration_data_ack_status_at, update_sea_level_press_ack_status, clear_update_sea_level_press_ack_status_at
     time = None
     day_of_week = 0
@@ -54,7 +59,7 @@ def reset_state() -> None:
     update_sea_level_press_ack_status = AckStatus.NOT_WAITING
     clear_update_sea_level_press_ack_status_at = None
 
-    last_loop_time = -100
+    last_main_loop_time = -100
     clear_messages()
 
 

@@ -16,6 +16,11 @@ class PacketTypes:
     DS_1307_ERASE = 0x0F
     SEA_LEVEL_PRESS_ACK_SUCCESS = 0x10
     SEA_LEVEL_PRESS_ACK_FAIL = 0x11
+    GET_BUILD_INFO = 0x12
+    MPU_6050_ST = 0x13
+    W25Q64FV_DEV_INFO = 0x14
+    FAULT_DATA = 0x15
+
 
 packet_lens = {
     PacketTypes.TIME_SET: 8,
@@ -26,7 +31,8 @@ packet_lens = {
     PacketTypes.REQ_CALIBRATION_DATA: 0,
     PacketTypes.CALIBRATION_DATA_BMP_180: 23,
     PacketTypes.CALIBRATION_DATA_BMP_280: 34,
-    PacketTypes.LOOP_TIME: 4,
+    PacketTypes.LOOP_TIME: 24,
     PacketTypes.SEA_LEVEL_PRESS_ACK_SUCCESS: 0,
     PacketTypes.SEA_LEVEL_PRESS_ACK_FAIL: 0,
+    PacketTypes.FAULT_DATA: 5
 }

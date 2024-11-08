@@ -5,10 +5,13 @@ from log_message import LogMessage
 
 class LogBuffer:
     messages: [LogMessage]
+    frozen_messages: [LogMessage]
+    is_frozen = False
     max_messages: int
 
     def __init__(self, max_messages: int = 1024):
         self.messages = []
+        self.frozen_messages = []
         self.max_messages = max_messages
 
     def add_message(self, message: str | LogMessage):
@@ -22,7 +25,10 @@ class LogBuffer:
 
     def generate_screen_text(self, width: int, height: int) -> [(str, int)]:
         lines: [(str, int)] = []
-        for log_message in self.messages[::-1]:
+        use_messages = self.messages
+        if self.is_frozen:
+            use_messages = self.frozen_messages
+        for log_message in use_messages[::-1]:
             message: str = log_message.message
             timestamp: str = log_message.get_formatted_timestamp()
             line_start = ''
@@ -58,3 +64,10 @@ class LogBuffer:
                 break
 
         return lines
+
+    def freeze(self):
+        self.frozen_messages = self.messages.copy()
+        self.is_frozen = True
+
+    def unfreeze(self):
+        self.is_frozen = False
