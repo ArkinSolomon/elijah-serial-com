@@ -25,6 +25,9 @@ class DisplayPageInformation:
                 ('Pressure', payload_state.pressure, 'Pa'),
                 ('Temperature', payload_state.temperature, '°C'),
                 ('Altitude', payload_state.altitude, 'm'),
+                ('Acceleration X', payload_state.accel_x, 'm/s^2'),
+                ('Acceleration Y', payload_state.accel_y, 'm/s^2'),
+                ('Acceleration Z', payload_state.accel_z, 'm/s^2'),
             ]
         ]
 

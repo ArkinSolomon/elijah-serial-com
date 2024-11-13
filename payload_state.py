@@ -13,6 +13,10 @@ pressure: int = -1
 temperature: float = -1
 altitude: float = -1
 
+accel_x: float = -1
+accel_y: float = -1
+accel_z: float = -1
+
 calibration_data_bmp_180: CalibrationDataBMP180 | None = None
 calibration_data_bmp_280: CalibrationDataBMP280 | None = None
 
@@ -40,13 +44,16 @@ def clear_messages():
 
 
 def reset_state() -> None:
-    global time, day_of_week, pressure, temperature, altitude, calibration_data_bmp_180, calibration_data_bmp_280, last_main_loop_time
+    global time, day_of_week, pressure, temperature, altitude, calibration_data_bmp_180, calibration_data_bmp_280, last_main_loop_time, accel_x, accel_y, accel_z
     global time_set_ack_status, clear_time_set_ack_status_at, calibration_data_ack_status, clear_calibration_data_ack_status_at, update_sea_level_press_ack_status, clear_update_sea_level_press_ack_status_at
     time = None
     day_of_week = 0
     pressure = -1
     temperature = -1
     altitude = -1
+    accel_x = -1
+    accel_y = -1
+    accel_z = -1
     calibration_data_bmp_180 = None
     calibration_data_bmp_280 = None
 

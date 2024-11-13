@@ -308,7 +308,6 @@ menu_options = [
     ('Update sea level pressure', update_sea_level_press),
     ('DS 1307 register dump', ds_1307_reg_dump),
     ('DS 1307 erase', ds_1307_erase),
-    ('Clear message history', payload_state.clear_messages),
     ('Build information', request_build_info),
     ('MPU 6050 self-test', mpu_6050_st),
     ('W25Q64FV device information', w25q64fv_print_device_info)
@@ -408,7 +407,7 @@ def main(screen: Screen):
         pause_help = 'Press P to pause the logging output'
         if payload_state.log_messages.is_frozen:
             pause_help = 'Press P to resume the logging output'
-        help_text = f'Use \u2191/\u2193 to switch options and \u21B5 to select. {pause_help}, or press Q to quit.'
+        help_text = f'Use \u2191/\u2193 to switch options and \u21B5 to select. {pause_help}, or press C to clear it. Press Q to quit.'
         ev = screen.get_key()
         if ev in (ord('Q'), ord('q')):
             user_has_quit = True
@@ -450,6 +449,8 @@ def main(screen: Screen):
                     payload_state.log_messages.unfreeze()
                 else:
                     payload_state.log_messages.freeze()
+            elif ev in (ord('C'), ord('c')):
+                payload_state.clear_messages()
         else:
             help_text = "Press ESC to cancel."
             if ev == -1:

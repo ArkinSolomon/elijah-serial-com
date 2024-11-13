@@ -9,6 +9,9 @@ class CollectionDataPacket:
     pressure: int
     temperature: float
     altitude: float
+    accel_x: float
+    accel_y: float
+    accel_z: float
 
     def __init__(self, data: bytearray):
         seconds = data[0]
@@ -28,8 +31,7 @@ class CollectionDataPacket:
             self.collection_time = None
 
         self.pressure = int.from_bytes(data[8:12])
-        self.temperature = struct.unpack("d", data[12:20])[0]
-        self.altitude = struct.unpack("d", data[20:28])[0]
+        self.temperature, self.altitude, self.accel_x, self.accel_y, self.accel_z = struct.unpack("<5d", data[12:])
 
     def update_payload_state(self):
         payload_state.time = self.collection_time
@@ -37,3 +39,6 @@ class CollectionDataPacket:
         payload_state.pressure = self.pressure
         payload_state.temperature = self.temperature
         payload_state.altitude = self.altitude
+        payload_state.accel_x = self.accel_x
+        payload_state.accel_y = self.accel_y
+        payload_state.accel_z = self.accel_z

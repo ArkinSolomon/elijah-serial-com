@@ -26,7 +26,7 @@ packet_lens = {
     PacketTypes.TIME_SET: 8,
     PacketTypes.TIME_SET_SUCCESS: 0,
     PacketTypes.TIME_SET_FAIL: 0,
-    PacketTypes.COLLECTION_DATA: 28,
+    PacketTypes.COLLECTION_DATA: 52,
     PacketTypes.STRING: -1,
     PacketTypes.REQ_CALIBRATION_DATA: 0,
     PacketTypes.CALIBRATION_DATA_BMP_180: 23,
