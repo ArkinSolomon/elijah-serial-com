@@ -31,6 +31,7 @@ clear_update_sea_level_press_ack_status_at: datetime | None = None
 
 last_main_loop_time: int = -100
 last_core_1_loop_time: int = -100
+last_time_since_last_loop: int = -100
 last_usb_loop_time: int = -100
 
 log_messages = LogBuffer()

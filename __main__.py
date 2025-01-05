@@ -1,5 +1,5 @@
 import os
-import sys
+import time
 from datetime import datetime, timedelta
 from math import floor
 from symtable import Function
@@ -23,6 +23,13 @@ from packets.string_packet import StringPacket
 
 tty: serial.Serial | None = None
 
+last_recv_rate = -1
+last_byte_counter = -1
+current_recv_rate = 0
+current_byte_counter = 0
+current_second = floor(time.time())
+MAX_BURST_READ_PACKETS = 128
+
 right_headers = ['Project Elijah: Payload Serial Communication', 'NASA Student Launch 2024-2025',
                  'Cedarville University']
 selected_opt = 0
@@ -45,17 +52,14 @@ full_device_path: str | None = None
 def try_connect():
     global tty, full_device_path, display_pages
     try:
-        if sys.platform == 'win32':
-            tty = serial.Serial(port="COM4", baudrate=9600)
-        else:
-            devices = [device for device in os.listdir('/dev') if 'tty.usbmodem' in device]
+        devices = [device for device in os.listdir('/dev') if 'tty.usbmodem' in device]
 
-            if len(devices) == 0:
-                return
+        if len(devices) == 0:
+            return
 
-            full_device_path = f'/dev/{devices[0]}'
+        full_device_path = f'/dev/{devices[0]}'
 
-            tty = serial.Serial(full_device_path)
+        tty = serial.Serial(full_device_path)
         tty.open()
         payload_state.reset_state()
         display_pages = DisplayPageInformation()
@@ -120,6 +124,10 @@ def w25q64fv_print_device_info():
     send_signal_packet(PacketTypes.W25Q64FV_DEV_INFO)
 
 
+def restart():
+    send_signal_packet(PacketTypes.RESTART)
+
+
 def request_calibration_data():
     if tty is None:
         return
@@ -154,69 +162,88 @@ def update_sea_level_press():
 
 
 def handle_serial_input():
-    global tty, data_display_pages, calibration_display_pages, is_input_mode
+    global tty, is_input_mode, last_recv_rate, last_byte_counter, current_recv_rate, current_byte_counter, current_second
+    burst_read_count = 0
+
+    new_current_second =  floor(time.time())
+    if new_current_second > current_second:
+        last_recv_rate = current_recv_rate
+        last_byte_counter = current_byte_counter
+        current_recv_rate = 0
+        current_byte_counter = 0
+        current_second = new_current_second
+
     try:
-        packet_type = bytes(tty.read(1))[0]
-        if packet_type not in packet_lens:
-            print_sys_log(f'Unknown packet_type 0x{packet_type.to_bytes().hex()}')
-            return
+        while tty.in_waiting and burst_read_count < MAX_BURST_READ_PACKETS:
+            packet_type = bytes(tty.read(1))[0]
+            if packet_type not in packet_lens:
+                print_sys_log(f'Unknown packet_type 0x{packet_type.to_bytes().hex()}')
+                continue
+            burst_read_count += 1
 
-        packet_len = packet_lens[packet_type]
-        data = bytearray()
-        if packet_len > 0:
-            data = bytearray(tty.read(packet_len))
-        elif packet_len == -1:
-            len_data = bytearray(tty.read(2))
-            packet_len = len_data[0] << 8 | len_data[1]
-            data = bytearray(tty.read(packet_len))
+            packet_len = packet_lens[packet_type]
+            data = bytearray()
+            if packet_len > 0:
+                data = bytearray(tty.read(packet_len))
+            elif packet_len == -1:
+                len_data = bytearray(tty.read(2))
+                packet_len = len_data[0] << 8 | len_data[1]
+                data = bytearray(tty.read(packet_len))
+            current_byte_counter += packet_len
 
-        match packet_type:
-            case PacketTypes.TIME_SET_SUCCESS:
-                payload_state.time_set_ack_status = AckStatus.SUCCESS
-                payload_state.clear_time_set_ack_status_at = datetime.now() + timedelta(seconds=5)
-            case PacketTypes.TIME_SET_FAIL:
-                payload_state.time_set_ack_status = AckStatus.FAILED
-                payload_state.clear_time_set_ack_status_at = datetime.now() + timedelta(seconds=5)
-            case PacketTypes.COLLECTION_DATA:
-                collection_data_packet = CollectionDataPacket(data)
-                collection_data_packet.update_payload_state()
-                data_display_pages = display_pages.update_pages()
-            case PacketTypes.STRING:
-                payload_state.log_messages.add_message(str(StringPacket(data)))
-            case PacketTypes.CALIBRATION_DATA_BMP_180:
-                calib_packet = CalibrationDataBMP180Packet(data)
-                calib_packet.update_payload_state()
-                payload_state.calibration_data_ack_status = AckStatus.SUCCESS
-                payload_state.clear_calibration_data_ack_status_at = datetime.now() + timedelta(seconds=5)
-                calibration_display_pages = display_pages.update_pages()
-            case PacketTypes.CALIBRATION_DATA_BMP_280:
-                calib_packet = CalibrationDataBMP280Packet(data)
-                calib_packet.update_payload_state()
-                payload_state.calibration_data_ack_status = AckStatus.SUCCESS
-                payload_state.clear_calibration_data_ack_status_at = datetime.now() + timedelta(seconds=5)
-                calibration_display_pages = display_pages.update_pages()
-            case PacketTypes.LOOP_TIME:
-                loop_packet = LoopTimePacket(data)
-                loop_packet.update_payload_state()
-            case PacketTypes.SEA_LEVEL_PRESS_ACK_SUCCESS:
-                payload_state.update_sea_level_press_ack_status = AckStatus.SUCCESS
-                payload_state.clear_update_sea_level_press_ack_status_at = datetime.now() + timedelta(seconds=5)
-            case PacketTypes.SEA_LEVEL_PRESS_ACK_FAIL:
-                payload_state.update_sea_level_press_ack_status = AckStatus.FAILED
-                payload_state.clear_update_sea_level_press_ack_status_at = datetime.now() + timedelta(seconds=5)
-            case PacketTypes.FAULT_DATA:
-                fault_packet = FaultDataPacket(data)
-                fault_packet.update_payload_state()
-            case _:
-                if packet_len == 0:
-                    print_sys_log(
-                        f'Received unimplemented signal packet 0x{packet_type.to_bytes(1, byteorder='little').hex()}')
-                else:
-                    print_sys_log(
-                        f'Data for unimplemented packet 0x{packet_type.to_bytes(1, byteorder='little').hex()}: 0x{data.hex()}')
+            match packet_type:
+                case PacketTypes.TIME_SET_SUCCESS:
+                    payload_state.time_set_ack_status = AckStatus.SUCCESS
+                    payload_state.clear_time_set_ack_status_at = datetime.now() + timedelta(seconds=5)
+                case PacketTypes.TIME_SET_FAIL:
+                    payload_state.time_set_ack_status = AckStatus.FAILED
+                    payload_state.clear_time_set_ack_status_at = datetime.now() + timedelta(seconds=5)
+                case PacketTypes.COLLECTION_DATA:
+                    collection_data_packet = CollectionDataPacket(data)
+                    collection_data_packet.update_payload_state()
+                    display_pages.update_pages()
+                case PacketTypes.STRING:
+                    payload_state.log_messages.add_message(str(StringPacket(data)))
+                case PacketTypes.CALIBRATION_DATA_BMP_180:
+                    calib_packet = CalibrationDataBMP180Packet(data)
+                    calib_packet.update_payload_state()
+                    payload_state.calibration_data_ack_status = AckStatus.SUCCESS
+                    payload_state.clear_calibration_data_ack_status_at = datetime.now() + timedelta(seconds=5)
+                    display_pages.update_pages()
+                case PacketTypes.CALIBRATION_DATA_BMP_280:
+                    calib_packet = CalibrationDataBMP280Packet(data)
+                    calib_packet.update_payload_state()
+                    payload_state.calibration_data_ack_status = AckStatus.SUCCESS
+                    payload_state.clear_calibration_data_ack_status_at = datetime.now() + timedelta(seconds=5)
+                    display_pages.update_pages()
+                case PacketTypes.LOOP_TIME:
+                    loop_packet = LoopTimePacket(data)
+                    loop_packet.update_payload_state()
+                case PacketTypes.SEA_LEVEL_PRESS_ACK_SUCCESS:
+                    payload_state.update_sea_level_press_ack_status = AckStatus.SUCCESS
+                    payload_state.clear_update_sea_level_press_ack_status_at = datetime.now() + timedelta(seconds=5)
+                case PacketTypes.SEA_LEVEL_PRESS_ACK_FAIL:
+                    payload_state.update_sea_level_press_ack_status = AckStatus.FAILED
+                    payload_state.clear_update_sea_level_press_ack_status_at = datetime.now() + timedelta(seconds=5)
+                case PacketTypes.FAULT_DATA:
+                    fault_packet = FaultDataPacket(data)
+                    fault_packet.update_payload_state()
+                case _:
+                    if packet_len == 0:
+                        print_sys_log(
+                            f'Received unimplemented signal packet 0x{packet_type.to_bytes(1, byteorder='little').hex()}')
+                    else:
+                        print_sys_log(
+                            f'Data for unimplemented packet 0x{packet_type.to_bytes(1, byteorder='little').hex()}: 0x{data.hex()}')
     except serial.SerialException:
         is_input_mode = False
         tty = None
+        last_recv_rate = -1
+        last_byte_counter = -1
+        current_recv_rate = 0
+        current_byte_counter = 0
+    finally:
+        current_recv_rate += burst_read_count
 
 
 def check_ack_flag_clears():
@@ -310,7 +337,8 @@ menu_options = [
     ('DS 1307 erase', ds_1307_erase),
     ('Build information', request_build_info),
     ('MPU 6050 self-test', mpu_6050_st),
-    ('W25Q64FV device information', w25q64fv_print_device_info)
+    ('W25Q64FV device information', w25q64fv_print_device_info),
+    ('Restart', restart)
 ]
 menu_options.sort(key=lambda opt: opt[0])
 
@@ -319,6 +347,7 @@ def main(screen: Screen):
     global user_has_quit, tty, selected_opt
     global is_input_mode, current_input
 
+    last_render: int = 0
     while True:
         if tty is None:
             try_connect()
@@ -384,14 +413,21 @@ def main(screen: Screen):
         core_1_loop_time_str = '{:.3f} ms'.format(payload_state.last_core_1_loop_time / 1000)
         screen.print_at(core_1_loop_time_str, core_1_loop_time_offset + len(core_1_loop_time_label), 2, colour=45)
 
-        usb_loop_time_offset = core_1_loop_time_offset + len(core_1_loop_time_label) + len(core_1_loop_time_str) + 1
+        last_loop_time_offset = core_1_loop_time_offset + len(core_1_loop_time_label) + len(core_1_loop_time_str) + 1
+        last_loop_time_label = 'Time since last loop: '
+        screen.print_at(last_loop_time_label, last_loop_time_offset, 2)
+
+        last_time_since_str = '{:.3f} ms'.format(payload_state.last_time_since_last_loop / 1000)
+        screen.print_at(last_time_since_str, last_loop_time_offset + len(last_loop_time_label), 2, colour=45)
+
+        usb_loop_time_offset = last_loop_time_offset + len(last_loop_time_label) + len(last_time_since_str) + 1
         usb_loop_time_label = 'Est. USB overhead: '
         screen.print_at(usb_loop_time_label, usb_loop_time_offset, 2)
 
         usb_loop_time_str = '{:.3f} ms'.format(payload_state.last_usb_loop_time / 1000)
         screen.print_at(usb_loop_time_str, usb_loop_time_offset + len(usb_loop_time_label), 2, colour=45)
 
-        misc_ack_status_x = len(main_loop_time_str) + len(main_loop_time_label) + 1
+        misc_ack_status_x = usb_loop_time_offset + len(usb_loop_time_label) + len(usb_loop_time_str) + 1
         if payload_state.update_sea_level_press_ack_status != AckStatus.NOT_WAITING:
             print_color = Screen.COLOUR_YELLOW
             status_text = 'Waiting for sea level pressure change acknowledgment...'
@@ -470,7 +506,8 @@ def main(screen: Screen):
             screen.print_at(current_input, len(current_prompt) + 1, screen.height - 1, colour=45)
 
         if tty is not None:
-            additional_info_text = f'Device: {full_device_path}'
+            kib_str = '{:.2f}'.format(last_byte_counter / 1024)
+            additional_info_text = f'Screen refresh: {int(1 / ((time.process_time_ns() - last_render) / 1e9))} Hz; Receive rate: {last_recv_rate} packets/s ({kib_str} kib/s); Device: {full_device_path}'
             screen.print_at(additional_info_text, screen.width - len(additional_info_text), screen.height - 1,
                             colour=243)
 
@@ -480,9 +517,10 @@ def main(screen: Screen):
         if screen.width > 105 and screen.height > 12:
             print_right_header(screen)
 
+        last_render = time.process_time_ns()
         screen.refresh()
         try:
-            if (tty is not None) and tty.in_waiting:
+            if tty is not None:
                 handle_serial_input()
         except OSError:
             is_input_mode = False

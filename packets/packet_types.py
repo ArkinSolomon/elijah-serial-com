@@ -20,6 +20,7 @@ class PacketTypes:
     MPU_6050_ST = 0x13
     W25Q64FV_DEV_INFO = 0x14
     FAULT_DATA = 0x15
+    RESTART = 0x16
 
 
 packet_lens = {
@@ -31,7 +32,7 @@ packet_lens = {
     PacketTypes.REQ_CALIBRATION_DATA: 0,
     PacketTypes.CALIBRATION_DATA_BMP_180: 23,
     PacketTypes.CALIBRATION_DATA_BMP_280: 34,
-    PacketTypes.LOOP_TIME: 24,
+    PacketTypes.LOOP_TIME: 32,
     PacketTypes.SEA_LEVEL_PRESS_ACK_SUCCESS: 0,
     PacketTypes.SEA_LEVEL_PRESS_ACK_FAIL: 0,
     PacketTypes.FAULT_DATA: 5

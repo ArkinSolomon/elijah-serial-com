@@ -21,8 +21,8 @@ class FaultDataPacket:
         self.fault_bmp_280 = data[4] & 0x10 > 0
         self.fault_hmc_5883l = data[4] & 0x08 > 0
         self.fault_mpu_6050 = data[4] & 0x04 > 0
-        self.fault_i2c_bus1 = data[4] & 0x10 > 0
-        self.fault_w25q64fv = data[4] & 0x08 > 0
+        self.fault_i2c_bus1 = data[4] & 0x02 > 0
+        self.fault_w25q64fv = data[4] & 0x01 > 0
 
     def update_payload_state(self):
         payload_state.last_fault_data = self
