@@ -122,7 +122,7 @@ def update_payload_clock():
         return
     tty.write(SetTimePacket().serialize())
     payload_state.time_set_ack_status = AckStatus.WAITING
-    payload_state.clear_time_set_ack_status_at = datetime.now() + timedelta(seconds=5)
+    payload_state.clear_time_set_ack_status_at = datetime.now()
 
 
 def send_signal_packet(packet_type: int):
