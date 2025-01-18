@@ -17,20 +17,21 @@ from packets.collection_data_packet import CollectionDataPacket
 from packets.fault_data_packet import FaultDataPacket
 from packets.loop_time_packet import LoopTimePacket
 from packets.packet_types import PacketTypes, packet_lens
-from packets.set_sea_level_press_packet import SetSeaLevelPressPacket
+from packets.set_baro_press_packet import SetBaroPressPacket
 from packets.set_time_packet import SetTimePacket
 from packets.string_packet import StringPacket
 
 tty: serial.Serial | None = None
+last_device_name: str | None = None
 
 last_recv_rate = -1
 last_byte_counter = -1
 current_recv_rate = 0
 current_byte_counter = 0
 current_second = floor(time.time())
-MAX_BURST_READ_PACKETS = 128
+MAX_BURST_READ_PACKETS = 5192
 
-right_headers = ['Project Elijah: Payload Serial Communication', 'NASA Student Launch 2024-2025',
+right_headers = ['Project Elijah: Calibration Computer', 'NASA Student Launch 2024-2025',
                  'Cedarville University']
 selected_opt = 0
 
@@ -48,16 +49,31 @@ def print_sys_log(message: str):
 
 full_device_path: str | None = None
 
+def get_devices():
+    return [device for device in os.listdir('/dev') if 'tty.usbmodem' in device]
 
-def try_connect():
-    global tty, full_device_path, display_pages
+def try_connect(screen: Screen):
+    global tty, full_device_path, display_pages, last_device_name
     try:
-        devices = [device for device in os.listdir('/dev') if 'tty.usbmodem' in device]
+        devices = get_devices()
 
+        sel_idx = 0
         if len(devices) == 0:
             return
+        elif len(devices) == 1 and last_device_name is not None and devices[0] != last_device_name:
+            return
+        elif len(devices) > 1:
+            if last_device_name is not None:
+                if last_device_name in devices:
+                    sel_idx = devices.index(last_device_name)
+                else:
+                    return
+            else:
+                sel_idx = device_choose(devices, screen)
 
-        full_device_path = f'/dev/{devices[0]}'
+
+        last_device_name = devices[sel_idx]
+        full_device_path = f'/dev/{last_device_name}'
 
         tty = serial.Serial(full_device_path)
         tty.open()
@@ -66,6 +82,40 @@ def try_connect():
     except serial.SerialException:
         return
 
+def device_choose(devices: [str], screen: Screen) -> int:
+    selected_idx = 0
+    while True:
+        screen.clear_buffer(Screen.COLOUR_WHITE, Screen.A_NORMAL, Screen.COLOUR_BLACK)
+        screen.print_at("Multiple serial devices detected, which one would you like to use?", 0, 0)
+        print_bar(screen, 1)
+        for idx, device in enumerate(devices):
+            ev = screen.get_key()
+            if ev == -204:
+                selected_idx -= 1
+                if selected_idx == -1:
+                    selected_idx = len(devices) - 1
+            elif ev == -206:
+                selected_idx += 1
+                if selected_idx == len(devices):
+                    selected_idx = 0
+            elif ev == 10:
+                return selected_idx
+
+            if idx == selected_idx:
+                screen.print_at(">", 0, 2 + idx,  colour=Screen.COLOUR_CYAN)
+            screen.print_at(devices[idx], 2, 2 + idx, colour=Screen.COLOUR_CYAN if selected_idx == idx else Screen.COLOUR_WHITE)
+
+        screen.refresh()
+
+def switch_devices():
+    global tty
+    if tty is None:
+        return
+
+    if len(get_devices()) == 1:
+        print_sys_log('Can not switch devices, only one device available')
+
+    tty = None
 
 def update_payload_clock():
     if tty is None:
@@ -136,7 +186,7 @@ def request_calibration_data():
     tty.write(packet)
 
 
-def send_sea_level_press():
+def send_baro_press():
     if tty is None:
         return
 
@@ -149,16 +199,16 @@ def send_sea_level_press():
         print_sys_log(f"Invalid value for pressure: {current_input}")
         return
 
-    payload_state.update_sea_level_press_ack_status = AckStatus.WAITING
-    tty.write(SetSeaLevelPressPacket(send_value).serialize())
+    payload_state.update_baro_press_ack_status = AckStatus.WAITING
+    tty.write(SetBaroPressPacket(send_value).serialize())
 
 
-def update_sea_level_press():
+def update_barometric_press():
     global is_input_mode, current_input, post_enter, current_prompt
     is_input_mode = True
     current_input = ""
-    post_enter = send_sea_level_press
-    current_prompt = "Sea level pressure (Pa):"
+    post_enter = send_baro_press
+    current_prompt = "Barometric pressure (Pa):"
 
 
 def handle_serial_input():
@@ -203,7 +253,8 @@ def handle_serial_input():
                     collection_data_packet.update_payload_state()
                     display_pages.update_pages()
                 case PacketTypes.STRING:
-                    payload_state.log_messages.add_message(str(StringPacket(data)))
+                    message = str(StringPacket(data))
+                    payload_state.log_messages.add_message(message)
                 case PacketTypes.CALIBRATION_DATA_BMP_180:
                     calib_packet = CalibrationDataBMP180Packet(data)
                     calib_packet.update_payload_state()
@@ -219,12 +270,12 @@ def handle_serial_input():
                 case PacketTypes.LOOP_TIME:
                     loop_packet = LoopTimePacket(data)
                     loop_packet.update_payload_state()
-                case PacketTypes.SEA_LEVEL_PRESS_ACK_SUCCESS:
-                    payload_state.update_sea_level_press_ack_status = AckStatus.SUCCESS
-                    payload_state.clear_update_sea_level_press_ack_status_at = datetime.now() + timedelta(seconds=5)
-                case PacketTypes.SEA_LEVEL_PRESS_ACK_FAIL:
-                    payload_state.update_sea_level_press_ack_status = AckStatus.FAILED
-                    payload_state.clear_update_sea_level_press_ack_status_at = datetime.now() + timedelta(seconds=5)
+                case PacketTypes.BARO_PRESS_ACK_SUCCESS:
+                    payload_state.update_baro_press_ack_status = AckStatus.SUCCESS
+                    payload_state.clear_update_baro_press_ack_status_at = datetime.now() + timedelta(seconds=5)
+                case PacketTypes.BARO_PRESS_ACK_FAIL:
+                    payload_state.update_baro_press_ack_status = AckStatus.FAILED
+                    payload_state.clear_update_baro_press_ack_status_at = datetime.now() + timedelta(seconds=5)
                 case PacketTypes.FAULT_DATA:
                     fault_packet = FaultDataPacket(data)
                     fault_packet.update_payload_state()
@@ -257,9 +308,9 @@ def check_ack_flag_clears():
             payload_state.clear_time_set_ack_status_at = datetime.now() + timedelta(seconds=5)
         else:
             payload_state.time_set_ack_status = AckStatus.NOT_WAITING
-    if payload_state.clear_update_sea_level_press_ack_status_at is not None and datetime.now() > payload_state.clear_update_sea_level_press_ack_status_at:
-        payload_state.clear_update_sea_level_press_ack_status_at = None
-        payload_state.update_sea_level_press_ack_status = AckStatus.NOT_WAITING
+    if payload_state.clear_update_baro_press_ack_status_at is not None and datetime.now() > payload_state.clear_update_baro_press_ack_status_at:
+        payload_state.clear_update_baro_press_ack_status_at = None
+        payload_state.update_baro_press_ack_status = AckStatus.NOT_WAITING
 
 
 def print_right_header(screen: Screen) -> None:
@@ -332,13 +383,14 @@ menu_options = [
     ('Request calibration data', request_calibration_data),
     ('Scan I2C bus 0', scan_bus_0),
     ('Scan I2C bus 1', scan_bus_1),
-    ('Update sea level pressure', update_sea_level_press),
+    ('Update barometric pressure', update_barometric_press),
     ('DS 1307 register dump', ds_1307_reg_dump),
     ('DS 1307 erase', ds_1307_erase),
     ('Build information', request_build_info),
     ('MPU 6050 self-test', mpu_6050_st),
     ('W25Q64FV device information', w25q64fv_print_device_info),
-    ('Restart', restart)
+    ('Restart', restart),
+    ('Switch devices', switch_devices)
 ]
 menu_options.sort(key=lambda opt: opt[0])
 
@@ -350,7 +402,7 @@ def main(screen: Screen):
     last_render: int = 0
     while True:
         if tty is None:
-            try_connect()
+            try_connect(screen)
 
         if screen.has_resized():
             return
@@ -428,14 +480,14 @@ def main(screen: Screen):
         screen.print_at(usb_loop_time_str, usb_loop_time_offset + len(usb_loop_time_label), 2, colour=45)
 
         misc_ack_status_x = usb_loop_time_offset + len(usb_loop_time_label) + len(usb_loop_time_str) + 1
-        if payload_state.update_sea_level_press_ack_status != AckStatus.NOT_WAITING:
+        if payload_state.update_baro_press_ack_status != AckStatus.NOT_WAITING:
             print_color = Screen.COLOUR_YELLOW
-            status_text = 'Waiting for sea level pressure change acknowledgment...'
-            if payload_state.update_sea_level_press_ack_status == AckStatus.SUCCESS:
-                status_text = 'Sea level pressure changed!'
+            status_text = 'Waiting for barometric pressure change acknowledgment...'
+            if payload_state.update_baro_press_ack_status == AckStatus.SUCCESS:
+                status_text = 'Barometric pressure changed!'
                 print_color = Screen.COLOUR_GREEN
-            elif payload_state.update_sea_level_press_ack_status == AckStatus.FAILED:
-                status_text = 'Unable to set sea level pressure :('
+            elif payload_state.update_baro_press_ack_status == AckStatus.FAILED:
+                status_text = 'Unable to set barometric pressure :('
                 print_color = Screen.COLOUR_RED
             screen.print_at(status_text, misc_ack_status_x, 2, colour=print_color)
             misc_ack_status_x += len(status_text) + 1

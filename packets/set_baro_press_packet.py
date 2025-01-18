@@ -3,7 +3,7 @@ import struct
 from packets.packet_types import PacketTypes
 
 
-class SetSeaLevelPressPacket:
+class SetBaroPressPacket:
     pressure: float
 
     def __init__(self, pressure: float):
@@ -11,5 +11,5 @@ class SetSeaLevelPressPacket:
 
     def serialize(self) -> bytearray:
         packet =  bytearray(struct.pack("<d", self.pressure))
-        packet.insert(0, PacketTypes.SET_SEA_LEVEL_PRESS)
+        packet.insert(0, PacketTypes.SET_BARO_PRESS)
         return packet

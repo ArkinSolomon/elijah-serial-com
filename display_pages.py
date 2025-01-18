@@ -70,8 +70,8 @@ class DisplayPageInformation:
                 ('P9',
                  payload_state.calibration_data_bmp_280.dig_P9 if payload_state.calibration_data_bmp_280 is not None else -1,
                  ''),
-                ('Sea Level Pressure',
-                 payload_state.calibration_data_bmp_280.sea_level_pressure if payload_state.calibration_data_bmp_280 is not None else -1,
+                ('Air pressure',
+                 payload_state.calibration_data_bmp_280.baro_pressure if payload_state.calibration_data_bmp_280 is not None else -1,
                  'Pa'),
             ]
         ]
@@ -88,6 +88,8 @@ class DisplayPageInformation:
                 ('DS 1307', get_display_str(payload_state.last_fault_data,
                                             payload_state.last_fault_data.fault_ds_1307 if payload_state.last_fault_data is not None else False),
                  'FAULT_UNIT'),
+                ('Clock', get_display_str(payload_state.last_fault_data,
+                                             payload_state.last_fault_data.fault_onboard_clock if payload_state.last_fault_data is not None else False), 'FAULT_UNIT'),
                 ('MPU 6050', get_display_str(payload_state.last_fault_data,
                                              payload_state.last_fault_data.fault_mpu_6050 if payload_state.last_fault_data is not None else False),
                  'FAULT_UNIT'),

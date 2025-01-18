@@ -11,7 +11,7 @@ class FaultDataPacket:
     fault_mpu_6050: bool
     fault_i2c_bus1: bool
     fault_w25q64fv: bool
-
+    fault_onboard_clock: bool
 
     def __init__(self, data: bytearray):
         self.device_status = data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3]
@@ -23,6 +23,9 @@ class FaultDataPacket:
         self.fault_mpu_6050 = data[4] & 0x04 > 0
         self.fault_i2c_bus1 = data[4] & 0x02 > 0
         self.fault_w25q64fv = data[4] & 0x01 > 0
+
+        # remember, adding another fault shifts by << 1
+        self.fault_onboard_clock = data[5] & 0x01 > 0
 
     def update_payload_state(self):
         payload_state.last_fault_data = self
