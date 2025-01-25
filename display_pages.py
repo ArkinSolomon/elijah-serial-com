@@ -27,7 +27,11 @@ class DisplayPageInformation:
                 ('Altitude', payload_state.altitude, 'm'),
                 ('Acceleration X', payload_state.accel_x, 'm/s^2'),
                 ('Acceleration Y', payload_state.accel_y, 'm/s^2'),
-                ('Acceleration Z', payload_state.accel_z, 'm/s^2'),
+                ('Acceleration Z', payload_state.accel_z, 'm/s^2')
+            ],
+            [
+                ('Battery voltage', payload_state.bat_voltage, 'V'),
+                ('Charge level', payload_state.bat_percent * 100, '%')
             ]
         ]
 
@@ -70,7 +74,7 @@ class DisplayPageInformation:
                 ('P9',
                  payload_state.calibration_data_bmp_280.dig_P9 if payload_state.calibration_data_bmp_280 is not None else -1,
                  ''),
-                ('Air pressure',
+                ('Barometric pressure',
                  payload_state.calibration_data_bmp_280.baro_pressure if payload_state.calibration_data_bmp_280 is not None else -1,
                  'Pa'),
             ]
@@ -89,12 +93,10 @@ class DisplayPageInformation:
                                             payload_state.last_fault_data.fault_ds_1307 if payload_state.last_fault_data is not None else False),
                  'FAULT_UNIT'),
                 ('Clock', get_display_str(payload_state.last_fault_data,
-                                             payload_state.last_fault_data.fault_onboard_clock if payload_state.last_fault_data is not None else False), 'FAULT_UNIT'),
+                                          payload_state.last_fault_data.fault_onboard_clock if payload_state.last_fault_data is not None else False),
+                 'FAULT_UNIT'),
                 ('MPU 6050', get_display_str(payload_state.last_fault_data,
                                              payload_state.last_fault_data.fault_mpu_6050 if payload_state.last_fault_data is not None else False),
-                 'FAULT_UNIT'),
-                ('W25Q64FV', get_display_str(payload_state.last_fault_data,
-                                             payload_state.last_fault_data.fault_w25q64fv if payload_state.last_fault_data is not None else False),
                  'FAULT_UNIT'),
                 ('I2C0', get_display_str(payload_state.last_fault_data,
                                          payload_state.last_fault_data.fault_i2c_bus0 if payload_state.last_fault_data is not None else False),
@@ -102,5 +104,11 @@ class DisplayPageInformation:
                 ('I2C1', get_display_str(payload_state.last_fault_data,
                                          payload_state.last_fault_data.fault_i2c_bus1 if payload_state.last_fault_data is not None else False),
                  'FAULT_UNIT'),
+                ('W25Q64FV', get_display_str(payload_state.last_fault_data,
+                                             payload_state.last_fault_data.fault_w25q64fv if payload_state.last_fault_data is not None else False),
+                 'FAULT_UNIT'),
+                ('MICRO SD', get_display_str(payload_state.last_fault_data,
+                                             payload_state.last_fault_data.fault_micro_sd if payload_state.last_fault_data is not None else False),
+                 'FAULT_UNIT')
             ]
         ]

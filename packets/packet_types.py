@@ -21,19 +21,23 @@ class PacketTypes:
     W25Q64FV_DEV_INFO = 0x14
     FAULT_DATA = 0x15
     RESTART = 0x16
-
+    NEW_LAUNCH = 0x17
+    LAUNCH_DATA = 0x18
+    FLUSH_TO_SD_CARD = 0x19
 
 packet_lens = {
     PacketTypes.TIME_SET: 8,
     PacketTypes.TIME_SET_SUCCESS: 0,
     PacketTypes.TIME_SET_FAIL: 0,
-    PacketTypes.COLLECTION_DATA: 52,
+    PacketTypes.COLLECTION_DATA: 68,
     PacketTypes.STRING: -1,
     PacketTypes.REQ_CALIBRATION_DATA: 0,
     PacketTypes.CALIBRATION_DATA_BMP_180: 23,
     PacketTypes.CALIBRATION_DATA_BMP_280: 34,
-    PacketTypes.LOOP_TIME: 32,
+    PacketTypes.LOOP_TIME: 24,
     PacketTypes.BARO_PRESS_ACK_SUCCESS: 0,
     PacketTypes.BARO_PRESS_ACK_FAIL: 0,
-    PacketTypes.FAULT_DATA: 6
+    PacketTypes.FAULT_DATA: 6,
+    PacketTypes.NEW_LAUNCH: 64,
+    PacketTypes.LAUNCH_DATA: 88
 }

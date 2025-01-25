@@ -12,6 +12,8 @@ class CollectionDataPacket:
     accel_x: float
     accel_y: float
     accel_z: float
+    bat_voltage: float
+    bat_percent: float
 
     def __init__(self, data: bytearray):
         seconds = data[0]
@@ -31,7 +33,7 @@ class CollectionDataPacket:
             self.collection_time = None
 
         self.pressure = int.from_bytes(data[8:12])
-        self.temperature, self.altitude, self.accel_x, self.accel_y, self.accel_z = struct.unpack("<5d", data[12:])
+        self.temperature, self.altitude, self.accel_x, self.accel_y, self.accel_z, self.bat_voltage, self.bat_percent = struct.unpack("<7d", data[12:])
 
     def update_payload_state(self):
         payload_state.time = self.collection_time
@@ -42,3 +44,5 @@ class CollectionDataPacket:
         payload_state.accel_x = self.accel_x
         payload_state.accel_y = self.accel_y
         payload_state.accel_z = self.accel_z
+        payload_state.bat_voltage = self.bat_voltage
+        payload_state.bat_percent = self.bat_percent

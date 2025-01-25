@@ -5,6 +5,7 @@ from calibration_data_bmp_180 import CalibrationDataBMP180
 from calibration_data_bmp_280 import CalibrationDataBMP280
 from log_buffer import LogBuffer
 from packets.fault_data_packet import FaultDataPacket
+from packets.launch_data_packet import LaunchDataPacket
 
 time: datetime | None = None
 day_of_week: int = 0
@@ -16,6 +17,9 @@ altitude: float = -1
 accel_x: float = -1
 accel_y: float = -1
 accel_z: float = -1
+
+bat_voltage: float = -1
+bat_percent: float = -1
 
 calibration_data_bmp_180: CalibrationDataBMP180 | None = None
 calibration_data_bmp_280: CalibrationDataBMP280 | None = None
@@ -31,12 +35,12 @@ clear_update_baro_press_ack_status_at: datetime | None = None
 
 last_main_loop_time: int = -100
 last_core_1_loop_time: int = -100
-last_time_since_last_loop: int = -100
 last_usb_loop_time: int = -100
 
 log_messages = LogBuffer()
 
 last_fault_data: FaultDataPacket | None = None
+current_launch_data: LaunchDataPacket | None = None
 
 def clear_messages():
     global log_messages
@@ -45,7 +49,7 @@ def clear_messages():
 
 
 def reset_state() -> None:
-    global time, day_of_week, pressure, temperature, altitude, calibration_data_bmp_180, calibration_data_bmp_280, last_main_loop_time, accel_x, accel_y, accel_z
+    global time, day_of_week, pressure, temperature, altitude, calibration_data_bmp_180, calibration_data_bmp_280, last_main_loop_time, accel_x, accel_y, accel_z, current_launch_data
     global time_set_ack_status, clear_time_set_ack_status_at, calibration_data_ack_status, clear_calibration_data_ack_status_at, update_baro_press_ack_status, clear_update_baro_press_ack_status_at
     time = None
     day_of_week = 0
@@ -66,8 +70,8 @@ def reset_state() -> None:
 
     update_baro_press_ack_status = AckStatus.NOT_WAITING
     clear_update_baro_press_ack_status_at = None
+    current_launch_data = None
 
-    last_main_loop_time = -100
     clear_messages()
 
 
