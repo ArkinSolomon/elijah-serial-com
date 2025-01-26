@@ -1,3 +1,4 @@
+import math
 import os
 import re
 import time
@@ -12,8 +13,8 @@ import payload_state
 from ack_status import AckStatus
 from display_pages import DisplayPageInformation
 from log_message import LogMessage
-from packets.calibration_data_bmp_180_packet import CalibrationDataBMP180Packet
 from packets.calibration_data_bmp_280_packet import CalibrationDataBMP280Packet
+from packets.calibration_data_mpu_6050_packet import CalibrationDataMPU6050Packet
 from packets.collection_data_packet import CollectionDataPacket
 from packets.fault_data_packet import FaultDataPacket
 from packets.launch_data_packet import LaunchDataPacket
@@ -175,10 +176,6 @@ def request_build_info():
     send_signal_packet(PacketTypes.GET_BUILD_INFO)
 
 
-def mpu_6050_st():
-    send_signal_packet(PacketTypes.MPU_6050_ST)
-
-
 def w25q64fv_print_device_info():
     send_signal_packet(PacketTypes.W25Q64FV_DEV_INFO)
 
@@ -186,8 +183,14 @@ def w25q64fv_print_device_info():
 def restart():
     send_signal_packet(PacketTypes.RESTART)
 
+
 def flush_to_sd_card():
     send_signal_packet(PacketTypes.FLUSH_TO_SD_CARD)
+
+
+def calibrate_mpu_6050():
+    send_signal_packet(PacketTypes.CALIBRATE_MPU_6050)
+
 
 def request_calibration_data():
     if tty is None:
@@ -304,12 +307,6 @@ def handle_serial_input():
                 case PacketTypes.STRING:
                     message = str(StringPacket(data))
                     payload_state.log_messages.add_message(message)
-                case PacketTypes.CALIBRATION_DATA_BMP_180:
-                    calib_packet = CalibrationDataBMP180Packet(data)
-                    calib_packet.update_payload_state()
-                    payload_state.calibration_data_ack_status = AckStatus.SUCCESS
-                    payload_state.clear_calibration_data_ack_status_at = datetime.now() + timedelta(seconds=5)
-                    display_pages.update_pages()
                 case PacketTypes.CALIBRATION_DATA_BMP_280:
                     calib_packet = CalibrationDataBMP280Packet(data)
                     calib_packet.update_payload_state()
@@ -331,6 +328,9 @@ def handle_serial_input():
                 case PacketTypes.LAUNCH_DATA:
                     launch_data_packet = LaunchDataPacket(data)
                     launch_data_packet.update_payload_state()
+                case PacketTypes.CALIBRATION_DATA_MPU_6050:
+                    calibration_packet = CalibrationDataMPU6050Packet(data)
+                    calibration_packet.upload_payload_state()
                 case _:
                     if packet_len == 0:
                         print_sys_log(
@@ -441,12 +441,12 @@ menu_options = [
     ('DS 1307 register dump', ds_1307_reg_dump),
     ('DS 1307 erase', ds_1307_erase),
     ('Build information', request_build_info),
-    ('MPU 6050 self-test', mpu_6050_st),
     ('W25Q64FV device information', w25q64fv_print_device_info),
     ('Restart', restart),
     ('Switch devices', switch_devices),
     ('New launch', create_new_launch),
-    ('Flush data to microSD', flush_to_sd_card)
+    ('Flush data to microSD', flush_to_sd_card),
+    ('Calibrate MPU 6050', calibrate_mpu_6050)
 ]
 menu_options.sort(key=lambda opt: opt[0])
 

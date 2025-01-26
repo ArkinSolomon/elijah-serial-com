@@ -25,13 +25,16 @@ class DisplayPageInformation:
                 ('Pressure', payload_state.pressure, 'Pa'),
                 ('Temperature', payload_state.temperature, '°C'),
                 ('Altitude', payload_state.altitude, 'm'),
-                ('Acceleration X', payload_state.accel_x, 'm/s^2'),
-                ('Acceleration Y', payload_state.accel_y, 'm/s^2'),
-                ('Acceleration Z', payload_state.accel_z, 'm/s^2')
-            ],
-            [
                 ('Battery voltage', payload_state.bat_voltage, 'V'),
                 ('Charge level', payload_state.bat_percent * 100, '%')
+            ],
+            [
+                ('Acceleration X', payload_state.accel_x, 'm/s^2'),
+                ('Acceleration Y', payload_state.accel_y, 'm/s^2'),
+                ('Acceleration Z', payload_state.accel_z, 'm/s^2'),
+                ('Gyro X', payload_state.gyro_x, 'm/s^2'),
+                ('Gyro Y', payload_state.gyro_y, 'm/s^2'),
+                ('Gyro Z', payload_state.gyro_z, 'm/s^2')
             ]
         ]
 
@@ -77,6 +80,26 @@ class DisplayPageInformation:
                 ('Barometric pressure',
                  payload_state.calibration_data_bmp_280.baro_pressure if payload_state.calibration_data_bmp_280 is not None else -1,
                  'Pa'),
+            ],
+            [
+                ('diff_xa',
+                 payload_state.calibration_data_mpu_6050.diff_xa if payload_state.calibration_data_mpu_6050 is not None else -1,
+                 'm/s^2'),
+                ('diff_ya',
+                 payload_state.calibration_data_mpu_6050.diff_ya if payload_state.calibration_data_mpu_6050 is not None else -1,
+                 'm/s^2'),
+                ('diff_za',
+                 payload_state.calibration_data_mpu_6050.diff_za if payload_state.calibration_data_mpu_6050 is not None else -1,
+                 'm/s^2'),
+                ('diff_xg',
+                 payload_state.calibration_data_mpu_6050.diff_xg if payload_state.calibration_data_mpu_6050 is not None else -1,
+                 '°/s'),
+                ('diff_yg',
+                 payload_state.calibration_data_mpu_6050.diff_yg if payload_state.calibration_data_mpu_6050 is not None else -1,
+                 '°/s'),
+                ('diff_zg',
+                 payload_state.calibration_data_mpu_6050.diff_zg if payload_state.calibration_data_mpu_6050 is not None else -1,
+                 '°/s')
             ]
         ]
 

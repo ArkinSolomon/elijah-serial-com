@@ -5,7 +5,6 @@ class PacketTypes:
     COLLECTION_DATA = 0x04
     STRING = 0x05
     REQ_CALIBRATION_DATA = 0x06
-    CALIBRATION_DATA_BMP_180 = 0x07
     HELLO = 0x08
     CALIBRATION_DATA_BMP_280 = 0x09
     LOOP_TIME = 0x0A
@@ -17,27 +16,29 @@ class PacketTypes:
     BARO_PRESS_ACK_SUCCESS = 0x10
     BARO_PRESS_ACK_FAIL = 0x11
     GET_BUILD_INFO = 0x12
-    MPU_6050_ST = 0x13
     W25Q64FV_DEV_INFO = 0x14
     FAULT_DATA = 0x15
     RESTART = 0x16
     NEW_LAUNCH = 0x17
     LAUNCH_DATA = 0x18
     FLUSH_TO_SD_CARD = 0x19
+    CALIBRATE_MPU_6050 = 0x1A
+    CALIBRATION_DATA_MPU_6050 = 0x1B
+
 
 packet_lens = {
     PacketTypes.TIME_SET: 8,
     PacketTypes.TIME_SET_SUCCESS: 0,
     PacketTypes.TIME_SET_FAIL: 0,
-    PacketTypes.COLLECTION_DATA: 68,
+    PacketTypes.COLLECTION_DATA: 92,
     PacketTypes.STRING: -1,
     PacketTypes.REQ_CALIBRATION_DATA: 0,
-    PacketTypes.CALIBRATION_DATA_BMP_180: 23,
     PacketTypes.CALIBRATION_DATA_BMP_280: 34,
     PacketTypes.LOOP_TIME: 24,
     PacketTypes.BARO_PRESS_ACK_SUCCESS: 0,
     PacketTypes.BARO_PRESS_ACK_FAIL: 0,
     PacketTypes.FAULT_DATA: 6,
     PacketTypes.NEW_LAUNCH: 64,
-    PacketTypes.LAUNCH_DATA: 88
+    PacketTypes.LAUNCH_DATA: 88,
+    PacketTypes.CALIBRATION_DATA_MPU_6050: 48
 }
