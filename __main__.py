@@ -494,9 +494,9 @@ def main(screen: Screen):
             curr_print_x += len(launch_label) + 1
 
             screen.print_at(payload_state.current_launch_data.launch_name, curr_print_x, 0, colour=Screen.COLOUR_CYAN)
-            curr_print_x += len(payload_state.current_launch_data.launch_name) + 1
+            curr_print_x += len(payload_state.current_launch_data.launch_name) 
 
-            sector_label = 'Next sector:'
+            sector_label = ', Next sector:'
             screen.print_at(sector_label, curr_print_x, 0, colour=Screen.COLOUR_WHITE)
             curr_print_x += len(sector_label) + 1
 
